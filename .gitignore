@@ -1,0 +1,113 @@
+# Build results
+bin/
+obj/
+out/
+TestResults/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VSCode and Rider
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs and database files
+*.log
+*.sqlite
+*.db
+*.ldf
+*.mdf
+
+# Coverage reports and profiling
+*.coverage
+*.coveragexml
+*.dotCover
+*.snap
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+*.orig
+
+# ReSharper
+_ReSharper*/
+*.DotSettings.user
+
+# Rider
+.idea/
+
+# VS Test explorer cache
+.vstest/
+
+# NuGet packages
+*.nupkg
+packages/
+.nuget/
+
+# Backup files
+*~*
+
+# Publish outputs
+publish/
+
+# Secrets (custom config pattern)
+secrets.json
+*.secrets.json
+.env
+
+# Auto-generated SDK files
+Generated_Code/
+
+# Git conflict backups
+*.orig
+
+# JetBrains Rider caches
+.idea/
+
+# Unit test generated snapshots or visual artifacts
+__snapshots__/
+
+# Local tools
+.localtools/
+
+# Mac/Linux cache files
+*.swp
+*.swo
+
+# Ignore GeoLite2 database file in App_Data but keep folder
+/src/Ability-Beyond-Disability-Benefits-Backend/App_Data/*
+!/src/Ability-Beyond-Disability-Benefits-Backend/App_Data/README.md
+
+# Dev HTTPS certs (mkcert)
+certs/
+
+#Environment Secrets
+config/secrets.env
+
+mySocialSecureApi/src/mySocialSecureApi/config/secrets.env
+
+mySocialSecureApi/src/mySocialSecureApi/App_Data/GeoLite2-City.mmdb
+
+mySocialSecureApi/src/mySocialSecureApi/App_Data/localhost.crt
+
+mySocialSecureApi/src/mySocialSecureApi/App_Data/localhost.csr
+
+mySocialSecureApi/src/mySocialSecureApi/App_Data/localhost.ext
+
+mySocialSecureApi/src/mySocialSecureApi/App_Data/localhost.key
+
+mySocialSecureApi/src/mySocialSecureApi/App_Data/localhost.pfx
+
+mySocialSecureApi/src/mySocialSecureApi/App_Data/rootCA.key
+
+mySocialSecureApi/src/mySocialSecureApi/App_Data/rootCA.pem
+
+mySocialSecureApi/src/mySocialSecureApi/App_Data/rootCA.srl

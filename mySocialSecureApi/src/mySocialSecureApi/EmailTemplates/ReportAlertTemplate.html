@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Admin Report Ready</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Montserrat', sans-serif;
+            background-color: #ffffff;
+            color: #101112;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            padding: 30px;
+        }
+
+        .logo {
+            text-align: center;
+        }
+
+        .logo img {
+            width: 100%;
+            max-width: 220px;
+        }
+
+        h1 {
+            color: #007bff;
+            text-align: center;
+            font-size: 24px;
+        }
+
+        .info {
+            font-size: 16px;
+            line-height: 1.5;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .details {
+            background-color: #f5f5f5;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 15px;
+            color: #333;
+        }
+
+        .footer {
+            font-size: 13px;
+            text-align: center;
+            color: #888888;
+            margin-top: 40px;
+        }
+
+        .button-container {
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .button {
+            background-color: #1a4364;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="logo">
+        <img src="https://res.cloudinary.com/team-coco/image/upload/v1745447065/Email/SocialSecureLogoWebTransparent_azozoz.png"
+             alt="Social Secure"
+             style="max-width: 100%; height: auto;" />
+    </div>
+
+    <h1>Report Export Complete</h1>
+
+    <div class="info">
+        <p>Hi {{AdminName}},</p>
+        <p>Your requested user export report has been successfully generated and is now available.</p>
+    </div>
+
+    <div class="details">
+        Report Name: <strong>{{FileName}}</strong><br />
+        Generated On: <strong>{{GeneratedDate}}</strong><br />
+        Saved To: <strong>{{FilePath}}</strong>
+    </div>
+
+    <div class="info">
+        <p>The report is stored securely in the <code>App_Data</code> folder and is not publicly accessible via the web.</p>
+        <p>If you have any questions or need assistance, please contact support.</p>
+    </div>
+
+    <div class="footer">
+        <hr />
+        <p>This is an automated message from the Social Secure system.</p>
+        <p>Need help? Contact <a href="mailto:support@socialsecure.com">support@socialsecure.com</a>.</p>
+        <p>&copy; 2025 Social Secure. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>
