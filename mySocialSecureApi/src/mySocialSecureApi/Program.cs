@@ -42,6 +42,7 @@ using My_Social_Secure_Api.Models.Settings;
 using My_Social_Secure_Api.Mapping;
 using My_Social_Secure_Api.Middleware;
 using My_Social_Secure_Api.Swagger;
+using My_Social_Secure_Api.Utilities;
 
 // ReSharper disable UnusedVariable
 
@@ -96,7 +97,7 @@ builder.Services.AddSwaggerGen(c =>
 // Only load .env if not running in GitHub Actions or production
 if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI")))
 {
-    DotNetEnv.Env.Load("./config/secrets.env");
+    EnvLoader.LoadEnvSafely();
 }
 
 //Configure JWT Bearer Authentication
@@ -636,9 +637,16 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/docs"), appBuil
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-
     var dbContext = services.GetRequiredService<ApplicationDbContext>();
-    await dbContext.Database.MigrateAsync();
+
+    if (dbContext.Database.IsRelational())
+    {
+        await dbContext.Database.MigrateAsync();
+    }
+    else
+    {
+        await dbContext.Database.EnsureCreatedAsync();
+    }
 
     await RoleClaimAndAdminSeeder.SeedRolesAndClaimsAsync(services);
 }
@@ -749,3 +757,5 @@ public static class RoleClaimAndAdminSeeder
 public abstract class RateLimitingSetup
 {
 }
+
+public partial class Program { }

@@ -111,3 +111,5 @@ mySocialSecureApi/src/mySocialSecureApi/App_Data/rootCA.key
 mySocialSecureApi/src/mySocialSecureApi/App_Data/rootCA.pem
 
 mySocialSecureApi/src/mySocialSecureApi/App_Data/rootCA.srl
+
+*.env

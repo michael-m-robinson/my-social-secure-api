@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 // ReSharper disable UnusedAutoPropertyAccessor.Global
 
@@ -37,6 +38,6 @@ public class RegisterRequestDto
     public bool SavedForFutureUse { get; init; }
     
     //Server information
-    public HostString Host { get; set; }
-    public string Scheme { get; set; }
+    [JsonIgnore] public HostString Host { get; set; }
+    [JsonIgnore] public string Scheme { get; set; }
 }
