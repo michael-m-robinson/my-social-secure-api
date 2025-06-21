@@ -10,7 +10,6 @@ using My_Social_Secure_Api.Interfaces.Services.Utilities;
 using My_Social_Secure_Api.Models.Common;
 using My_Social_Secure_Api.Models.Dtos.Auth;
 using My_Social_Secure_Api.Models.Dtos.Common;
-using My_Social_Secure_Api.Models.Dtos.Notifications;
 using My_Social_Secure_Api.Models.Dtos.Security;
 using My_Social_Secure_Api.Models.Identity;
 using My_Social_Secure_Api.Models.Notifications;
@@ -18,6 +17,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using My_Social_Secure_Api.Models.Auth;
 using My_Social_Secure_Api.Models.Dtos.Registration;
+using System.Net.Mail;
 // ReSharper disable ConvertToPrimaryConstructor
 
 namespace My_Social_Secure_Api.Services.Auth;
@@ -80,13 +80,16 @@ public class AuthService: IAuthService
             var existingEmail = await _userManager.FindByEmailAsync(dto.Email);
             if (existingEmail != null)
                 return AuthenticationErrorResponse<RegisterDto>("Email is already in use.");
-
+            
             var existingUserName = await _userManager.FindByNameAsync(dto.UserName);
             if (existingUserName != null)
                 return AuthenticationErrorResponse<RegisterDto>("Username is already in use.");
-
+            
             if (dto.Password != dto.ConfirmPassword)
                 return AuthenticationErrorResponse<RegisterDto>("Password and confirm password do not match.");
+            
+            if(!IsValidEmail(dto.Email))
+                return ValidationErrorResponse<RegisterDto>("Invalid email format.");
 
             var user = new ApplicationUser
             {
@@ -563,5 +566,18 @@ public class AuthService: IAuthService
     private string SafeToken(string token)
     {
         return token.Replace(' ', '+');
+    }
+    
+    private bool IsValidEmail(string email)
+    {
+        try
+        {
+            return !string.IsNullOrWhiteSpace(email)
+                   && MailAddress.TryCreate(email, out _);
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

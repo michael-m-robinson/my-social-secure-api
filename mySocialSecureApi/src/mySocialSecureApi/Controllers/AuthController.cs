@@ -30,6 +30,9 @@ public class AuthController(
     [SwaggerResponse(StatusCodes.Status200OK, "User registered successfully.", typeof(ApiResponse<RegisterDto>))]
     public async Task<IActionResult> Register([FromBody] RegisterRequestDto dto)
     {
+        dto.Host = accessor.HttpContext?.Request.Host ?? default;
+        dto.Scheme = accessor.HttpContext?.Request.Scheme ?? "https";
+        
         var result = await authService.RegisterNewUserAsync(dto);
         Response.Headers.Append("X-Correlation-ID", CorrelationId);
         return result.Success ? Ok(result) : BadRequest(result);
@@ -41,6 +44,9 @@ public class AuthController(
     [SwaggerResponse(StatusCodes.Status200OK, "User login result", typeof(ApiResponse<OperationDto>))]
     public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
     {
+        dto.Host = accessor.HttpContext?.Request.Host ?? default;
+        dto.Scheme = accessor.HttpContext?.Request.Scheme ?? "https";
+        
         var result = await authService.LoginUserAsync(dto);
         Response.Headers.Append("X-Correlation-ID", CorrelationId);
         return result.Success ? Ok(result) : Unauthorized(result);
@@ -52,6 +58,9 @@ public class AuthController(
     [SwaggerResponse(StatusCodes.Status200OK, "2FA verification result", typeof(ApiResponse<OperationDto>))]
     public async Task<IActionResult> LoginWith2Fa([FromBody] VerifyTwoFactorDto dto)
     {
+        dto.Host = accessor.HttpContext?.Request.Host ?? default;
+        dto.Scheme = accessor.HttpContext?.Request.Scheme ?? "https";
+        
         var result = await authService.LoginUserWith2FaAsync(dto);
         Response.Headers.Append("X-Correlation-ID", CorrelationId);
         return result.Success ? Ok(result) : Unauthorized(result);
@@ -98,6 +107,9 @@ public class AuthController(
     [SwaggerResponse(StatusCodes.Status200OK, "Email sent", typeof(ApiResponse<OperationDto>))]
     public async Task<IActionResult> ResendEmailConfirmation([FromBody] ResendRegistrationEmailConfirmationDto dto)
     {
+        dto.Host = accessor.HttpContext?.Request.Host ?? default;
+        dto.Scheme = accessor.HttpContext?.Request.Scheme ?? "https";
+        
         var result = await authService.ResendRegistrationEmailConfirmation(dto);
         Response.Headers.Append("X-Correlation-ID", CorrelationId);
         return result.Success ? Ok(result) : BadRequest(result);
