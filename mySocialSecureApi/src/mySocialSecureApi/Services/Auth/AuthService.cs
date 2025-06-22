@@ -1,4 +1,4 @@
-﻿using My_Social_Secure_Api.Data;
+using My_Social_Secure_Api.Data;
 using My_Social_Secure_Api.Enums.Common;
 using My_Social_Secure_Api.Interfaces.Services.Auth;
 using My_Social_Secure_Api.Interfaces.Services.DeviceRecognition;
@@ -550,6 +550,12 @@ public class AuthService: IAuthService
     private ApiResponse<OperationDto> BuildSuccessfulLoginResponse(ApplicationUser user, ApiResponse<OperationDto> response)
     {
         var token = _jwtTokenGenerator.GenerateToken(user);
+        
+        if (string.IsNullOrEmpty(token))
+        {
+            _logger.LogError("Failed to generate JWT token for user {UserId}. CorrelationId: {CorrelationId}", user.Id, CorrelationId);
+            return InternalErrorResponse<OperationDto>();
+        }
 
         response.Success = true;
         response.Message = "Login successful.";
