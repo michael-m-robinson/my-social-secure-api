@@ -64,7 +64,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             }, "Password123!").GetAwaiter().GetResult();
 
             // Create a user with an existing username to test duplicate username registration
-            userManager.CreateAsync(new ApplicationUser
+            var twoFactorUser = new ApplicationUser
             {
                 UserName = "LoggedInUser2",
                 NormalizedUserName = "LOGGEDINUSER2",
@@ -76,9 +76,15 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 State = "Logged State",
                 EmailConfirmed = true,
                 TwoFactorEnabled = true
-            }, "Password123!").GetAwaiter().GetResult();
+            };
 
-            
+            userManager.CreateAsync(twoFactorUser, "Password123!").GetAwaiter().GetResult();
+
+            //Authenticator key for two-factor authentication
+            //userManager.ResetAuthenticatorKeyAsync(twoFactorUser).GetAwaiter().GetResult();
+            //TwoFactorKeyForUser2 = userManager.GetAuthenticatorKeyAsync(twoFactorUser).GetAwaiter().GetResult()!;
+
+
             // Create a user with lockout enabled and locked out
             var lockedUser = new ApplicationUser
             {
@@ -116,7 +122,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 NormalizedEmail = "UNCONFIRMED@USER.COM",
                 EmailConfirmed = false,
                 TwoFactorEnabled = false,
-                LockoutEnabled = true
+                LockoutEnabled = false,
             }, "Password123!").GetAwaiter().GetResult();
         });
     }

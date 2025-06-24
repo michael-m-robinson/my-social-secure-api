@@ -1,5 +1,7 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.InteropServices.JavaScript;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +10,7 @@ using My_Social_Secure_Api.Models.Common;
 using My_Social_Secure_Api.Models.Dtos.Common;
 using My_Social_Secure_Api.Models.Dtos.Registration;
 using My_Social_Secure_Api.Models.Identity;
+using OtpNet;
 using Social_Secure_Integration_Tests.Infrastructure;
 
 
@@ -507,4 +510,200 @@ public class AuthControllerTests(CustomWebApplicationFactory factory) : Integrat
         Assert.Equal("AUTH_FAILURE", responseData.Error.Code);
         Assert.Contains("Your account is locked due to multiple failed login attempts. Please try again later.", responseData.Message);
     }
+    
+    [Fact]
+    public async Task Login_AccountNotConfirmed_ReturnsUnauthorized()
+    {
+        var requestBody = new
+        {
+            userName = "UnconfirmedUser",
+            password = "Password123!",
+        };
+
+        var request = new
+        {
+            Url = "/auth/login",
+            Body = requestBody
+        };
+
+        var response = await Client.PostAsJsonAsync(request.Url, request.Body);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+
+        var responseData = await response.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        Assert.NotNull(responseData);
+        Assert.False(responseData.Success);
+        Assert.Equal("Please confirm your email before logging in.", responseData.Message);
+        Assert.Equal(OperationStatus.Failed, responseData.Error!.Status);
+        Assert.Equal(ErrorCategory.Authentication, responseData.Error.Category);
+        Assert.Equal("Authentication failed.", responseData.Error.Description);
+        Assert.Equal("AUTH_FAILURE", responseData.Error.Code);
+    }
+
+    [Fact]
+    public async Task LoginWith2Fa_ValidCode_ReturnsSuccess()
+    {
+        // Simulate the first login to get the partial token
+        var passwordLoginRequestBody = new
+        {
+            userName = "LoggedInUser2",
+            password = "Password123!",
+            rememberMe = false
+        };
+        
+        var passwordLoginRequest = new
+        {
+            Url = "/auth/login",
+            Body = passwordLoginRequestBody
+        };
+        
+        var passwordLoginResponse = await Client.PostAsJsonAsync(passwordLoginRequest.Url, passwordLoginRequest.Body);
+        var passwordLoginResponseContent = await passwordLoginResponse.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        
+        Factory.CreateClient();
+        using var scope = Factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByNameAsync("LoggedInUser2");
+        var validCode = await userManager.GenerateTwoFactorTokenAsync(user!, TokenOptions.DefaultEmailProvider);
+
+        var requestBody = new
+        {
+            userName = "LoggedInUser2",
+            password = "Password123!",
+            code = validCode,
+            rememberMe = false
+        };
+        
+        var request = new HttpRequestMessage(HttpMethod.Post, "/auth/login-2fa");
+        var partialToken = passwordLoginResponseContent!.Data!.Token;
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", partialToken);
+        
+        request.Content = JsonContent.Create(requestBody);
+        
+        var response = await Client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var responseContent = await response.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        Assert.NotNull(responseContent);
+        Assert.NotNull(responseContent.Data!.Token);
+        Assert.True(responseContent!.Success);
+        Assert.Equal("Login successful.", responseContent.Message);
+        Assert.Equal(OperationStatus.Ok, responseContent.Data.Status);
+        Assert.Equal("The user was successfully authenticated.", responseContent.Data.Description);
+    }
+
+    [Fact]
+    public async Task LoginWith2Fa_InvalidCode_ReturnsUnauthorized()
+    {
+        // Simulate the first login to get the partial token
+        var passwordLoginRequestBody = new
+        {
+            userName = "LoggedInUser2",
+            password = "Password123!",
+            rememberMe = false
+        };
+        
+        var passwordLoginRequest = new
+        {
+            Url = "/auth/login",
+            Body = passwordLoginRequestBody
+        };
+        
+        var passwordLoginResponse = await Client.PostAsJsonAsync(passwordLoginRequest.Url, passwordLoginRequest.Body);
+        var passwordLoginResponseContent = await passwordLoginResponse.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        
+        Factory.CreateClient();
+        using var scope = Factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByNameAsync("LoggedInUser2");
+
+        // Use an invalid code for testing
+        var invalidCode = "Invalid2FACode";
+
+        var requestBody = new
+        {
+            userName = "LoggedInUser2",
+            password = "Password123!",
+            code = invalidCode,
+            rememberMe = false
+        };
+        
+        var request = new HttpRequestMessage(HttpMethod.Post, "/auth/login-2fa");
+        var partialToken = passwordLoginResponseContent!.Data!.Token;
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", partialToken);
+        
+        request.Content = JsonContent.Create(requestBody);
+        
+        var response = await Client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        
+        var responseContent = await response.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        Assert.NotNull(responseContent);
+        Assert.False(responseContent.Success);
+        Assert.Equal(OperationStatus.Failed, responseContent.Error!.Status);
+        Assert.Equal("Invalid 2FA code.", responseContent.Message);
+        Assert.Equal(ErrorCategory.Authentication, responseContent.Error.Category);
+        Assert.Equal("Authentication failed.", responseContent.Error.Description);
+        Assert.Equal("AUTH_FAILURE", responseContent.Error.Code);
+    }
+
+    [Fact]
+    public async Task Logout_ValidRequest_ReturnsSuccess()
+    {
+        var requestBody = new
+        {
+            userName = "LoggedInUser1",
+            password = "Password123!",
+        };
+
+        var loginResponse = await Client.PostAsJsonAsync("/auth/login", requestBody);
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+        var loginResponseData = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        Assert.NotNull(loginResponseData);
+        Assert.NotNull(loginResponseData.Data!.Token);
+        
+        var token = loginResponseData.Data.Token;
+        var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/auth/logout");
+        
+        Factory.CreateClient();
+        using var scope = Factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var userId = (await userManager.FindByNameAsync("LoggedInUser1"))!.Id;
+        
+        logoutRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        logoutRequest.Content = JsonContent.Create(new { UserId = userId, Token = token });
+        var logoutResponse = await Client.SendAsync(logoutRequest);
+        
+        Assert.Equal(HttpStatusCode.OK, logoutResponse.StatusCode);
+        var logoutResponseData = await logoutResponse.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        Assert.NotNull(logoutResponseData);
+        Assert.True(logoutResponseData.Success);
+        Assert.Equal("Logged out successfully.", logoutResponseData.Message);
+        Assert.Equal(OperationStatus.Ok, logoutResponseData.Data!.Status);
+        Assert.Equal("The user has been logged out successfully.", logoutResponseData.Data.Description);
+    }
+
+    [Fact]
+    public async Task Logout_InvalidRequest_ReturnsUnauthorized()
+    {
+        var fakeToken = "InvalidTokenString";
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/auth/logout");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", fakeToken);
+        request.Content = JsonContent.Create(new { });
+
+        var response = await Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var responseData = await response.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        Assert.NotNull(responseData);
+        Assert.False(responseData.Success);
+        Assert.Equal("Invalid request. Please provide a valid token.", responseData.Message);
+        Assert.Equal(OperationStatus.Failed, responseData.Error!.Status);
+        Assert.Equal("Authentication failed.", responseData.Error.Description);
+        Assert.Equal("AUTH_FAILURE", responseData.Error.Code);
+        Assert.Contains("Invalid request. Please provide a valid token.", responseData.Error!.Errors!);
+        
+        Assert.Equal(ErrorCategory.Authentication, responseData.Error!.Category);
+    }
+    
+    
 }

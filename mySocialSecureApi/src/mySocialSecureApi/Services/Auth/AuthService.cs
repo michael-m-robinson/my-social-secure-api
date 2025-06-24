@@ -240,25 +240,9 @@ public class AuthService: IAuthService
             if (signInResult.IsNotAllowed)
             {
                 if (!user.EmailConfirmed)
-                    return AuthenticationErrorResponse<OperationDto>("You must confirm your email before logging in.");
+                    return AuthenticationErrorResponse<OperationDto>("Please confirm your email before logging in.");
 
                 return AuthenticationErrorResponse<OperationDto>("Login not allowed. Please contact support.");
-            }
-
-            if (signInResult.RequiresTwoFactor)
-            {
-                return new ApiResponse<OperationDto>
-                {
-                    Success = false,
-                    Message = "Two-factor authentication required.",
-                    Error = new ApiError
-                    {
-                        Status = OperationStatus.ActionRequired,
-                        Code = "REQUIRES_2FA",
-                        Category = ErrorCategory.Authentication,
-                        Errors = new List<string> { "Two-factor authentication required." }
-                    }
-                };
             }
 
             return AuthenticationErrorResponse<OperationDto>("Login failed.");
@@ -309,6 +293,8 @@ public class AuthService: IAuthService
             {
                 return AuthenticationErrorResponse<OperationDto>("Two-factor login not allowed.");
             }
+            
+            
 
             return AuthenticationErrorResponse<OperationDto>("Invalid 2FA code.");
         }
@@ -338,11 +324,11 @@ public class AuthService: IAuthService
         try
         {
             if (string.IsNullOrWhiteSpace(dto.Token))
-                return ValidationErrorResponse<OperationDto>("A valid token must be provided.");
+                return AuthenticationErrorResponse<OperationDto>("Invalid request. Please provide a valid token.");
             
             await _refreshTokenService.RevokeTokenAsync(dto.Token);
             await _signInManager.SignOutAsync();
-
+            
             return GenericSuccessResponse(new OperationDto
             {
                 Status = OperationStatus.Ok,

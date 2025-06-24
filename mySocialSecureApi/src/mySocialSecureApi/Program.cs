@@ -476,6 +476,7 @@ builder.Services.AddAuthentication(options =>
             ValidateAudience = true,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero,
+            ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
             ValidAudience = builder.Configuration["JwtSettings:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(key)
@@ -653,15 +654,14 @@ using (var scope = app.Services.CreateScope())
 
 app.ConfigureExceptionHandler(app.Services.GetRequiredService<ILoggerFactory>());
 app.UseMiddleware<CorrelationIdMiddleware>();
-app.UseRouting();
 app.UseHttpsRedirection();
-app.UseCors("DefaultPolicy");
+app.UseHsts();
+app.UseRouting();
+app.UseCors("DefaultPolicy"); 
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 app.MapControllers();
-app.UseHsts();
-app.UseCors();
 
 app.Run();
 
@@ -758,4 +758,6 @@ public abstract class RateLimitingSetup
 {
 }
 
-public partial class Program { }
+public partial class Program
+{
+}
