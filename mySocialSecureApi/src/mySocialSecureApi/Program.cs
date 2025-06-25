@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using My_Social_Secure_Api.Data;
 using My_Social_Secure_Api.Interfaces.Services.Admin;
 using My_Social_Secure_Api.Interfaces.Services.Auth;
@@ -463,11 +464,11 @@ builder.Services.Configure<DataProtectionTokenProviderOptions>("EmailConfirmatio
 
 // Add Authentication
 builder.Services.AddAuthentication(options =>
-
     {
         options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
         options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
     })
+    .AddCookie()
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
@@ -476,6 +477,7 @@ builder.Services.AddAuthentication(options =>
             ValidateAudience = true,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero,
+            ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
             ValidAudience = builder.Configuration["JwtSettings:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(key)
@@ -496,7 +498,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 
 // Configure cookie settings
-builder.Services.ConfigureApplicationCookie(options =>
+builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorUserIdScheme, options =>
 {
     options.Cookie.HttpOnly = true;
     options.ExpireTimeSpan = TimeSpan.FromDays(14); // Default expiration time for persistent cookies
@@ -504,6 +506,9 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.LoginPath = "/Auth/Login";
     options.LogoutPath = "/Auth/Logout";
     options.AccessDeniedPath = "/Auth/AccessDenied";
+    options.Cookie.Name = ".AspNetCore.Identity.TwoFactorUserId";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
 });
 
 builder.Services.Configure<BenefitSettingsModel>(
@@ -653,15 +658,14 @@ using (var scope = app.Services.CreateScope())
 
 app.ConfigureExceptionHandler(app.Services.GetRequiredService<ILoggerFactory>());
 app.UseMiddleware<CorrelationIdMiddleware>();
-app.UseRouting();
 app.UseHttpsRedirection();
+app.UseHsts();
+app.UseRouting();
 app.UseCors("DefaultPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 app.MapControllers();
-app.UseHsts();
-app.UseCors();
 
 app.Run();
 
@@ -758,4 +762,6 @@ public abstract class RateLimitingSetup
 {
 }
 
-public partial class Program { }
+public partial class Program
+{
+}

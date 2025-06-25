@@ -38,6 +38,6 @@ public class RegisterRequestDto
     public bool SavedForFutureUse { get; init; }
     
     //Server information
-    [JsonIgnore] public HostString Host { get; set; }
-    [JsonIgnore] public string Scheme { get; set; }
+    [JsonIgnore] public HostString Host { get; set; } = new HostString("localhost", 80);
+    [JsonIgnore] public string Scheme { get; set; } = "https";
 }
