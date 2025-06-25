@@ -1,15 +1,15 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using My_Social_Secure_Api.Data;
 using My_Social_Secure_Api.Models.Identity;
 using My_Social_Secure_Api.Utilities;
-using Microsoft.AspNetCore.Identity;
-
 
 namespace Social_Secure_Integration_Tests.Infrastructure;
 
+// ReSharper disable once ClassNeverInstantiated.Global
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -17,75 +17,64 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         EnvLoader.LoadEnvSafely();
         builder.ConfigureServices(services =>
         {
-            var descriptor =
-                services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
+            var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
             if (descriptor != null)
                 services.Remove(descriptor);
 
-            services.AddDbContext<ApplicationDbContext>(options => { options.UseInMemoryDatabase("TestDb"); });
+            services.AddDbContext<ApplicationDbContext>(options =>
+            {
+                options.UseInMemoryDatabase("TestDb");
+            });
 
             var sp = services.BuildServiceProvider();
             using var scope = sp.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var signInManager = scope.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>();
+
+            db.Database.EnsureDeleted();
             db.Database.EnsureCreated();
 
-            // Seed the database with test data
-            db.Users.Add(new ApplicationUser
+            void SeedUser(ApplicationUser user, string password, bool confirmEmail = true)
             {
-                UserName = "existingEmailUser",
-                NormalizedUserName = "EXISTINGEMAILUSER",
-                Email = "existing@user.com",
-                NormalizedEmail = "EXISTING@USER.COM",
+                user.EmailConfirmed = confirmEmail;
+                var result = userManager.CreateAsync(user, password).Result;
+                if (!result.Succeeded)
+                    throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
+            }
+
+            // 1. Successful login user (no 2FA)
+            SeedUser(new ApplicationUser
+            {
+                UserName = "TestUserNo2FA",
+                NormalizedUserName = "TESTUSERNO2FA",
+                Email = "no2fa@example.com",
+                NormalizedEmail = "NO2FA@EXAMPLE.COM",
                 FirstName = "Test",
                 LastName = "User",
                 City = "Test City",
-                State = "Test State",
-                EmailConfirmed = true,
+                State = "MA",
                 TwoFactorEnabled = false
-            });
-
-            db.SaveChanges();
-
-            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-
-            // Create a user with an existing email to test duplicate email registration
-            userManager.CreateAsync(new ApplicationUser
-            {
-                UserName = "LoggedInUser1",
-                NormalizedUserName = "LOGGEDINUSER1",
-                Email = "loggedin@user1.com",
-                NormalizedEmail = "LOGGEDIN@USER1.COM",
-                FirstName = "Logged",
-                LastName = "In",
-                City = "Logged City",
-                State = "Logged State",
-                EmailConfirmed = true,
-                TwoFactorEnabled = false
-            }, "Password123!").GetAwaiter().GetResult();
-
-            // Create a user with an existing username to test duplicate username registration
+            }, "Password123!");
+            
+            // 2. 2FA-required user
             var twoFactorUser = new ApplicationUser
             {
                 UserName = "LoggedInUser2",
                 NormalizedUserName = "LOGGEDINUSER2",
-                Email = "mike.maurice.robinson@gmail.com",
-                NormalizedEmail = "LOGGEDIN@USER2.COM",
-                FirstName = "Logged",
-                LastName = "In",
-                City = "Logged City",
-                State = "Logged State",
-                EmailConfirmed = true,
-                TwoFactorEnabled = true
+                Email = "loggedin2@example.com",
+                NormalizedEmail = "LOGGEDIN2@EXAMPLE.COM",
+                FirstName = "Two",
+                LastName = "Factor",
+                City = "City",
+                State = "MA",
+                TwoFactorEnabled = true,
+                EmailConfirmed = true
             };
-
-            userManager.CreateAsync(twoFactorUser, "Password123!").GetAwaiter().GetResult();
-
-            //Authenticator key for two-factor authentication
-            //userManager.ResetAuthenticatorKeyAsync(twoFactorUser).GetAwaiter().GetResult();
-            //TwoFactorKeyForUser2 = userManager.GetAuthenticatorKeyAsync(twoFactorUser).GetAwaiter().GetResult()!;
-
-
-            // Create a user with lockout enabled and locked out
+            SeedUser(twoFactorUser, "Password123!");
+            
+            
+            // 3. Locked out user
             var lockedUser = new ApplicationUser
             {
                 UserName = "LockedOutUser",
@@ -97,33 +86,58 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 City = "Locked City",
                 State = "Locked State",
                 EmailConfirmed = true,
-                TwoFactorEnabled = false,
                 LockoutEnabled = true
             };
-            userManager.CreateAsync(lockedUser, "Password123!").GetAwaiter().GetResult();
-
-            var signInManager = scope.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>();
+            SeedUser(lockedUser, "Password123!");
             for (int i = 0; i < 5; i++)
             {
-                signInManager.PasswordSignInAsync(lockedUser.UserName, "Wrong!", false, lockoutOnFailure: true)
-                    .GetAwaiter().GetResult();
+                signInManager.PasswordSignInAsync(lockedUser.UserName, "Wrong!", false, lockoutOnFailure: true).Wait();
             }
 
-            // Create a user with unconfirmed email
-            userManager.CreateAsync(new ApplicationUser
+            // 4. Unconfirmed email user
+            SeedUser(new ApplicationUser
             {
-                UserName = "UnconfirmedUser",
-                NormalizedUserName = "UNCONFIRMEDUSER",
-                Email = "unconfirmed@user.com",
-                FirstName = "Unconfirmed",
-                LastName = "User",
-                City = "Unconfirmed City",
-                State = "Unconfirmed State",
-                NormalizedEmail = "UNCONFIRMED@USER.COM",
-                EmailConfirmed = false,
+                UserName = "UnconfirmedEmailUser",
+                NormalizedUserName = "UNCONFIRMEDEMAILUSER",
+                Email = "unconfirmed@example.com",
+                NormalizedEmail = "UNCONFIRMED@EXAMPLE.COM",
+                FirstName = "Email",
+                LastName = "NotConfirmed",
+                City = "NoCity",
+                State = "MA",
                 TwoFactorEnabled = false,
-                LockoutEnabled = false,
-            }, "Password123!").GetAwaiter().GetResult();
+                EmailConfirmed = false
+            }, "Password123!", confirmEmail: false);
+
+            // 5. 2FA user with unconfirmed email
+            SeedUser(new ApplicationUser
+            {
+                UserName = "UnconfirmedEmailUserWith2FA",
+                NormalizedUserName = "UNCONFIRMEDEMAILUSERWITH2FA",
+                Email = "unconfirmed2fa@example.com",
+                NormalizedEmail = "UNCONFIRMED2FA@EXAMPLE.COM",
+                FirstName = "Email",
+                LastName = "Unconfirmed2FA",
+                City = "Test",
+                State = "MA",
+                TwoFactorEnabled = true,
+                EmailConfirmed = false
+            }, "Password123!", confirmEmail: false);
+
+            // 6. Existing user (duplicate username check)
+            SeedUser(new ApplicationUser
+            {
+                UserName = "existingEmailUser",
+                NormalizedUserName = "EXISTINGEMAILUSER",
+                Email = "test@user.com",
+                NormalizedEmail = "TEST@USER.COM",
+                FirstName = "Duplicate",
+                LastName = "User",
+                City = "Springfield",
+                State = "MA",
+                EmailConfirmed = true,
+                TwoFactorEnabled = true
+            }, "Password123!");
         });
     }
 }
