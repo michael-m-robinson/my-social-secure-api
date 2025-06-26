@@ -36,6 +36,7 @@ public class AuthService : IAuthService
     private readonly IUserEmailService _emailSender;
     private readonly IUrlBuilderService _urlBuilderService;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ITokenBundleService _tokenBundleService;
 
     public AuthService(ILogger<AuthService> logger,
         UserManager<ApplicationUser> userManager,
@@ -48,7 +49,7 @@ public class AuthService : IAuthService
         IIpGeolocationService geoLocationService,
         IUserEmailService emailSender,
         IUrlBuilderService urlBuilderService,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor, ITokenBundleService tokenBundleService)
     {
         _logger = logger;
         _userManager = userManager;
@@ -62,6 +63,7 @@ public class AuthService : IAuthService
         _emailSender = emailSender;
         _urlBuilderService = urlBuilderService;
         _httpContextAccessor = httpContextAccessor;
+        _tokenBundleService = tokenBundleService;
     }
 
     private string CorrelationId => _httpContextAccessor.HttpContext?.Items["X-Correlation-ID"]?.ToString() ?? "none";
@@ -71,7 +73,7 @@ public class AuthService : IAuthService
         try
         {
             _logger.LogInformation("RegisterNewUser started. CorrelationId: {CorrelationId}", CorrelationId);
-            var ip = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var ip = NormalizeIp(_httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown");
             _logger.LogInformation("RegisterNewUser requested from IP: {IpAddress}", ip);
 
             var existingEmail = await _userManager.FindByEmailAsync(dto.Email);
@@ -151,27 +153,27 @@ public class AuthService : IAuthService
         }
     }
 
-    public async Task<ApiResponse<OperationDto>> LoginUserAsync(LoginRequestDto dto)
+    public async Task<ApiResponse<TokenBundleDto>> LoginUserAsync(LoginRequestDto dto)
     {
         try
         {
             _logger.LogInformation("LoginUserAsync. CorrelationId: {CorrelationId}", CorrelationId);
-            var ip = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            var ip = NormalizeIp(_httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown");
             _logger.LogInformation("LoginUserAsync requested from IP: {IpAddress}", ip);
 
             if (string.IsNullOrWhiteSpace(dto.UserName) || string.IsNullOrWhiteSpace(dto.Password))
-                return ValidationErrorResponse<OperationDto>("Username or password is empty.", "EMPTY_CREDENTIALS");
+                return ValidationErrorResponse<TokenBundleDto>("Username or password is empty.", "EMPTY_CREDENTIALS");
 
             var user = await _userManager.FindByNameAsync(dto.UserName);
             if (user == null)
-                return NotFoundErrorResponse<OperationDto>("User not found.", "USER_NOT_FOUND");
+                return NotFoundErrorResponse<TokenBundleDto>("User not found.", "USER_NOT_FOUND");
             
             var signInResult =
                 await _signInManager.PasswordSignInAsync(user, dto.Password, dto.RememberMe, lockoutOnFailure: true);
             
             if (signInResult.IsLockedOut)
             {
-                return AuthenticationErrorResponse<OperationDto>(
+                return AuthenticationErrorResponse<TokenBundleDto>(
                     "Your account is locked due to multiple failed login attempts. Please try again later.",
                     "ACCOUNT_LOCKED");
             }
@@ -179,10 +181,10 @@ public class AuthService : IAuthService
             if (signInResult.IsNotAllowed)
             {
                 if (!user.EmailConfirmed)
-                    return AuthenticationErrorResponse<OperationDto>("Please confirm your email before logging in.",
+                    return AuthenticationErrorResponse<TokenBundleDto>("Please confirm your email before logging in.",
                         "EMAIL_NOT_CONFIRMED");
 
-                return AuthenticationErrorResponse<OperationDto>("Login not allowed. Please contact support.",
+                return AuthenticationErrorResponse<TokenBundleDto>("Login not allowed. Please contact support.",
                     "LOGIN_NOT_ALLOWED");
             }
 
@@ -209,7 +211,7 @@ public class AuthService : IAuthService
                     RequestLink = requestLink
                 });
 
-                return new ApiResponse<OperationDto>
+                return new ApiResponse<TokenBundleDto>
                 {
                     Success = false,
                     Message = "Two-factor authentication required.",
@@ -220,7 +222,7 @@ public class AuthService : IAuthService
                         Category = ErrorCategory.Authentication,
                         Errors = new List<string> { "Two-factor authentication required." }
                     },
-                    Data = new OperationDto
+                    Data = new TokenBundleDto
                     {
                         Token = partialLoginToken,
                         Status = OperationStatus.ActionRequired,
@@ -238,24 +240,24 @@ public class AuthService : IAuthService
                 var location = await _geoLocationService.GetLocationAsync(ip);
 
                 await _loginHistoryService.RecordLoginAsync(user, ip, device, location);
-                return BuildSuccessfulLoginResponse(user, new ApiResponse<OperationDto>());
+                return await _tokenBundleService.IssueTokenBundleAsync(user);
             }
 
-            return AuthenticationErrorResponse<OperationDto>("Login failed.", "LOGIN_FAILED");
+            return AuthenticationErrorResponse<TokenBundleDto>("Login failed.", "LOGIN_FAILED");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "An error occurred during login. CorrelationId: {CorrelationId}", CorrelationId);
-            return InternalErrorResponse<OperationDto>("LOGIN_ERROR");
+            return InternalErrorResponse<TokenBundleDto>("LOGIN_ERROR");
         }
     }
 
-    public async Task<ApiResponse<OperationDto>> LoginUserWith2FaAsync(VerifyTwoFactorDto dto)
+    public async Task<ApiResponse<TokenBundleDto>> LoginUserWith2FaAsync(VerifyTwoFactorDto dto)
     {
         try
         {
             _logger.LogInformation("LoginUserWith2Fa started. CorrelationId: {CorrelationId}", CorrelationId);
-            var ip = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            var ip = NormalizeIp(_httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown");
             _logger.LogInformation("LoginUserWith2Fa requested from IP: {IpAddress}", ip);
             
             var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
@@ -263,7 +265,7 @@ public class AuthService : IAuthService
             {
                 _logger.LogWarning("User not found for 2FA login. Username: {UserName} Correlation Id: {CorrelationId}",
                     dto.UserName, CorrelationId);
-                return NotFoundErrorResponse<OperationDto>("User not found.", "USER_NOT_FOUND");
+                return NotFoundErrorResponse<TokenBundleDto>("User not found.", "USER_NOT_FOUND");
             }
 
             var result = await _signInManager.TwoFactorSignInAsync(
@@ -274,7 +276,7 @@ public class AuthService : IAuthService
             );
 
             if (result.IsLockedOut)
-                return UnauthorizedErrorResponse<OperationDto>("ACCOUNT_LOCKED");
+                return UnauthorizedErrorResponse<TokenBundleDto>("ACCOUNT_LOCKED");
 
             if (result.Succeeded)
             {
@@ -286,39 +288,39 @@ public class AuthService : IAuthService
                 var location = await _geoLocationService.GetLocationAsync(ip);
 
                 await _loginHistoryService.RecordLoginAsync(user, ip, device, location);
-                return BuildSuccessfulLoginResponse(user, new ApiResponse<OperationDto>());
+                return await _tokenBundleService.IssueTokenBundleAsync(user);
             }
 
             if (result.IsNotAllowed)
             {
-                return AuthenticationErrorResponse<OperationDto>("Two-factor login not allowed.", "2FA_NOT_ALLOWED");
+                return AuthenticationErrorResponse<TokenBundleDto>("Two-factor login not allowed.", "2FA_NOT_ALLOWED");
             }
 
-            return AuthenticationErrorResponse<OperationDto>("Invalid 2FA code.", "INVALID_2FA_CODE");
+            return AuthenticationErrorResponse<TokenBundleDto>("Invalid 2FA code.", "INVALID_2FA_CODE");
         }
         catch (DbUpdateException dbEx)
         {
             _logger.LogError(dbEx, "Database update failed during 2FA login. Correlation ID: {CorrelationId}",
                 CorrelationId);
-            return DatabaseErrorResponse<OperationDto>("Database update failed.", "DATABASE_UPDATE_FAILED");
+            return DatabaseErrorResponse<TokenBundleDto>("Database update failed.", "DATABASE_UPDATE_FAILED");
         }
         catch (UnauthorizedAccessException uaEx)
         {
             _logger.LogWarning(uaEx, "Unauthorized access attempt during 2FA login. Correlation ID: {CorrelationId}",
                 CorrelationId);
-            return UnauthorizedErrorResponse<OperationDto>("UNAUTHORIZED_ACCESS");
+            return UnauthorizedErrorResponse<TokenBundleDto>("UNAUTHORIZED_ACCESS");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred during 2FA login. Correlation ID: {CorrelationId}", CorrelationId);
-            return InternalErrorResponse<OperationDto>("2FA_LOGIN_ERROR");
+            return InternalErrorResponse<TokenBundleDto>("2FA_LOGIN_ERROR");
         }
     }
 
     public async Task<ApiResponse<OperationDto>> LogoutUserAsync(LogoutRequestDto dto)
     {
         _logger.LogInformation("LogoutUserAsync started. CorrelationId: {CorrelationId}", CorrelationId);
-        var ip = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+        var ip = NormalizeIp(_httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown");
         _logger.LogInformation("LogoutUserAsync requested from IP: {IpAddress}", ip);
 
         try
@@ -327,7 +329,7 @@ public class AuthService : IAuthService
                 return AuthenticationErrorResponse<OperationDto>("Invalid request. Please provide a valid token.",
                     "INVALID_REQUEST");
 
-            await _refreshTokenService.RevokeTokenAsync(dto.Token);
+            await _refreshTokenService.ValidateAndRotateRefreshTokenAsync(dto.Token);
             await _signInManager.SignOutAsync();
 
             return GenericSuccessResponse(new OperationDto
@@ -350,7 +352,7 @@ public class AuthService : IAuthService
         {
             _logger.LogInformation("ResendRegistrationEmailConfirmation started. CorrelationId: {CorrelationId}",
                 CorrelationId);
-            var ip = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            var ip = NormalizeIp(_httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown");
             _logger.LogInformation("ResendRegistrationEmailConfirmation reset requested from IP: {IpAddress}", ip);
 
             var user = await _userManager.FindByEmailAsync(dto.Email);
@@ -406,7 +408,7 @@ public class AuthService : IAuthService
         {
             _logger.LogInformation("VerifyAndConfirmRegistrationEmail started. CorrelationId: {CorrelationId}",
                 CorrelationId);
-            var ip = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            var ip = NormalizeIp(_httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown");
             _logger.LogInformation("VerifyAndConfirmRegistrationEmail reset requested from IP: {IpAddress}", ip);
 
             var user = await _userManager.FindByIdAsync(dto.UserId);
@@ -450,13 +452,6 @@ public class AuthService : IAuthService
     }
 
     private ApiResponse<T> GenericSuccessResponse<T>(T data, string message) where T : BaseOperationDto => new()
-    {
-        Success = true,
-        Message = message,
-        Data = data
-    };
-
-    private ApiResponse<T> AuthenticationSuccessResponse<T>(T data, string message) where T : BaseOperationDto => new()
     {
         Success = true,
         Message = message,
@@ -548,30 +543,6 @@ public class AuthService : IAuthService
         }
     };
 
-    private ApiResponse<OperationDto> BuildSuccessfulLoginResponse(ApplicationUser user,
-        ApiResponse<OperationDto> response)
-    {
-        var token = _jwtTokenGenerator.GenerateToken(user);
-
-        if (string.IsNullOrEmpty(token))
-        {
-            _logger.LogError("Failed to generate JWT token for user {UserId}. CorrelationId: {CorrelationId}", user.Id,
-                CorrelationId);
-            return InternalErrorResponse<OperationDto>("TOKEN_GENERATION_FAILED");
-        }
-
-        response.Success = true;
-        response.Message = "Login successful.";
-        response.Data = new OperationDto
-        {
-            Status = OperationStatus.Ok,
-            Description = "The user was successfully authenticated.",
-            Token = token
-        };
-
-        return response;
-    }
-
     private string SafeToken(string token)
     {
         return token.Replace(' ', '+');
@@ -588,5 +559,15 @@ public class AuthService : IAuthService
         {
             return false;
         }
+    }
+    
+    private static string NormalizeIp(string? ip)
+    {
+        return ip switch
+        {
+            "::1" => "127.0.0.1",
+            null or "" => "unknown",
+            _ => ip
+        };
     }
 }

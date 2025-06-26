@@ -9,7 +9,5 @@ namespace My_Social_Secure_Api.Interfaces.Services.Auth;
 public interface IRefreshTokenService
 {
     Task<ApiResponse<TokenDto>> CreateRefreshTokenAsync(ApplicationUser user);
-    Task<ApiResponse<TokenDto>> GetValidTokenAsync(string token);
-    Task<ApiResponse<OperationDto>> ValidateRefreshTokenAsync(string refreshToken);
-    Task RevokeTokenAsync(string token);
+    Task<ApiResponse<TokenDto>> ValidateAndRotateRefreshTokenAsync(string refreshToken);
 }
