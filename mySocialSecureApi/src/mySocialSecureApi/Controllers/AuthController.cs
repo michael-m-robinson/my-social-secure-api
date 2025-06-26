@@ -1,5 +1,4 @@
-﻿using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Swashbuckle.AspNetCore.Annotations;
@@ -8,7 +7,6 @@ using My_Social_Secure_Api.Interfaces.Services.Auth;
 using My_Social_Secure_Api.Models.Common;
 using My_Social_Secure_Api.Models.Dtos.Auth;
 using My_Social_Secure_Api.Models.Dtos.Common;
-using My_Social_Secure_Api.Models.Dtos.Notifications;
 using My_Social_Secure_Api.Models.Dtos.Security;
 using My_Social_Secure_Api.Models.Dtos.Registration;
 
@@ -32,7 +30,7 @@ public class AuthController(
     {
         dto.Host = accessor.HttpContext?.Request.Host ?? default;
         dto.Scheme = accessor.HttpContext?.Request.Scheme ?? "https";
-        
+
         var result = await authService.RegisterNewUserAsync(dto);
         Response.Headers.Append("X-Correlation-ID", CorrelationId);
         return result.Success ? Ok(result) : BadRequest(result);
@@ -46,7 +44,7 @@ public class AuthController(
     {
         dto.Host = accessor.HttpContext?.Request.Host ?? default;
         dto.Scheme = accessor.HttpContext?.Request.Scheme ?? "https";
-        
+
         var result = await authService.LoginUserAsync(dto);
         Response.Headers.Append("X-Correlation-ID", CorrelationId);
         return result.Success ? Ok(result) : Unauthorized(result);
@@ -60,7 +58,7 @@ public class AuthController(
     {
         dto.Host = accessor.HttpContext?.Request.Host ?? default;
         dto.Scheme = accessor.HttpContext?.Request.Scheme ?? "https";
-        
+
         var result = await authService.LoginUserWith2FaAsync(dto);
         Response.Headers.Append("X-Correlation-ID", CorrelationId);
         return result.Success ? Ok(result) : Unauthorized(result);
@@ -103,13 +101,14 @@ public class AuthController(
 
     [EnableRateLimiting("ResendConfirmationPolicy")]
     [HttpPost("resend-email-confirmation")]
-    [SwaggerOperation(Summary = "Resend registration email confirmation", Description = "Resends the email confirmation link to user.")]
+    [SwaggerOperation(Summary = "Resend registration email confirmation",
+        Description = "Resends the email confirmation link to user.")]
     [SwaggerResponse(StatusCodes.Status200OK, "Email sent", typeof(ApiResponse<OperationDto>))]
     public async Task<IActionResult> ResendEmailConfirmation([FromBody] ResendRegistrationEmailConfirmationDto dto)
     {
         dto.Host = accessor.HttpContext?.Request.Host ?? default;
         dto.Scheme = accessor.HttpContext?.Request.Scheme ?? "https";
-        
+
         var result = await authService.ResendRegistrationEmailConfirmation(dto);
         Response.Headers.Append("X-Correlation-ID", CorrelationId);
         return result.Success ? Ok(result) : BadRequest(result);
@@ -117,7 +116,8 @@ public class AuthController(
 
     [EnableRateLimiting("ConfirmEmailPolicy")]
     [HttpPost("confirm-email")]
-    [SwaggerOperation(Summary = "Confirm registration email", Description = "Confirms the user's email address with token.")]
+    [SwaggerOperation(Summary = "Confirm registration email",
+        Description = "Confirms the user's email address with token.")]
     [SwaggerResponse(StatusCodes.Status200OK, "Email confirmed", typeof(ApiResponse<OperationDto>))]
     public async Task<IActionResult> ConfirmEmail([FromBody] RegistrationEmailConfirmationDto dto)
     {
@@ -129,13 +129,13 @@ public class AuthController(
     [EnableRateLimiting("RefreshPolicy")]
     [HttpPost("refresh")]
     [SwaggerOperation(Summary = "Refresh JWT Token", Description = "Refreshes an expired JWT access token.")]
-    [SwaggerResponse(StatusCodes.Status200OK, "Token refreshed", typeof(ApiResponse<OperationDto>))]
+    [SwaggerResponse(StatusCodes.Status200OK, "Token refreshed", typeof(ApiResponse<TokenDto>))]
     [SwaggerResponse(StatusCodes.Status401Unauthorized, "Refresh token invalid or expired", typeof(ApiError))]
     public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequestDto dto)
     {
         try
         {
-            var result = await refreshTokenService.ValidateRefreshTokenAsync(dto.RefreshToken);
+            var result = await refreshTokenService.ValidateAndRotateRefreshTokenAsync(dto.RefreshToken);
             Response.Headers.Append("X-Correlation-ID", CorrelationId);
             return result.Success ? Ok(result) : Unauthorized(result);
         }
@@ -156,6 +156,7 @@ public class AuthController(
             });
         }
     }
+
 
     private IActionResult UnauthorizedError()
     {

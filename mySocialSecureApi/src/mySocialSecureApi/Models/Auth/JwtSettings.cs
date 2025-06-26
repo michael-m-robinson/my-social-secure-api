@@ -7,4 +7,5 @@ public class JwtSettings
     public string Audience { get; set; } = null!;
     public double ExpireMinutes { get; set; } = 15;
     public double TwoFactorExpireMinutes { get; set; } = 5;
+    public double AccessExpireMinutes { get; set; } = 15;
 }

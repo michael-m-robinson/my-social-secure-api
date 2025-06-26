@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using My_Social_Secure_Api.Interfaces.Services.Auth;
 using My_Social_Secure_Api.Models.Auth;
 using My_Social_Secure_Api.Models.Identity;
+
 // ReSharper disable ConvertToPrimaryConstructor
 
 namespace My_Social_Secure_Api.Services.Auth;
@@ -22,9 +23,43 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         IHttpContextAccessor httpContextAccessor)
     {
         _logger = logger;
-        _jwtSettings = jwtSettings.Value ?? throw new ArgumentNullException(nameof(jwtSettings), "JWT settings are not configured properly.");
+        _jwtSettings = jwtSettings.Value ??
+                       throw new ArgumentNullException(nameof(jwtSettings),
+                           "JWT settings are not configured properly.");
         _httpContextAccessor = httpContextAccessor;
     }
+
+    public ClaimsPrincipal? ValidateToken(string token, out DateTime? expiresUtc)
+    {
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.UTF8.GetBytes(_jwtSettings.Secret);
+
+        try
+        {
+            var principal = tokenHandler.ValidateToken(token, new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(key),
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidIssuer = _jwtSettings.Issuer,
+                ValidAudience = _jwtSettings.Audience,
+                ClockSkew = TimeSpan.Zero
+            }, out SecurityToken validatedToken);
+
+            // Safely cast to JWT and extract expiration
+            var jwtToken = validatedToken as JwtSecurityToken;
+            expiresUtc = jwtToken?.ValidTo;
+
+            return principal;
+        }
+        catch
+        {
+            expiresUtc = null;
+            return null;
+        }
+    }
+
 
     public string GenerateToken(ApplicationUser user)
     {
@@ -45,12 +80,14 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         }
         catch (ArgumentNullException ex)
         {
-            _logger.LogError(ex, "Missing user property during token generation. CorrelationId: {CorrelationId}", correlationId);
+            _logger.LogError(ex, "Missing user property during token generation. CorrelationId: {CorrelationId}",
+                correlationId);
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error during JWT generation. CorrelationId: {CorrelationId}", correlationId);
+            _logger.LogError(ex, "Unexpected error during JWT generation. CorrelationId: {CorrelationId}",
+                correlationId);
             throw new InvalidOperationException("Failed to generate JWT token due to an unexpected error.", ex);
         }
     }
@@ -95,7 +132,7 @@ public class JwtTokenGenerator : IJwtTokenGenerator
             throw new ArgumentException("JWT expiration time must be greater than zero.");
 
         var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY")
-            ?? throw new InvalidOperationException("JWT_SECRET_KEY environment variable is not set.");
+                        ?? throw new InvalidOperationException("JWT_SECRET_KEY environment variable is not set.");
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

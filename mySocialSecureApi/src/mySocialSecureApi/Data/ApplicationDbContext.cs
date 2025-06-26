@@ -17,4 +17,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public virtual DbSet<LoginHistoryModel> LoginHistories { get; set; }
     public DbSet<RefreshTokenModel> RefreshTokens { get; set; }
     public DbSet<FeedbackModel> Feedbacks { get; set; }
+    public DbSet<TokenRotationLogModel> TokenRotationLogs { get; set; } = null!;
+
 }
