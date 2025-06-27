@@ -254,11 +254,15 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         };
 
         var response = await client.PostAsJsonAsync("/auth/login", loginBody);
-        var content = await response.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        var content = await response.Content.ReadFromJsonAsync<ApiResponse<TokenBundleDto>>();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(content!.Success);
-        Assert.NotNull(content.Data!.Token);
+        Assert.False(string.IsNullOrWhiteSpace(content.Data!.AccessToken));
+        Assert.False(string.IsNullOrWhiteSpace(content.Data.RefreshToken));
+        Assert.True(content.Data.AccessTokenExpiresUtc > DateTime.UtcNow);
+        Assert.True(content.Data.RefreshTokenExpiresUtc > DateTime.UtcNow);
+
     }
 
     [Fact]
@@ -433,14 +437,19 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         twoFaRequest.Headers.Add("Cookie", twoFaCookie);
 
         var twoFaResponse = await client.SendAsync(twoFaRequest);
-        var result = await twoFaResponse.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        var result = await twoFaResponse.Content.ReadFromJsonAsync<ApiResponse<TokenBundleDto>>();
 
         // Step 5: Validate response
         Assert.Equal(HttpStatusCode.OK, twoFaResponse.StatusCode);
+        Assert.NotNull(result);
         Assert.True(result!.Success);
         Assert.Equal(OperationStatus.Ok, result.Data!.Status);
-        Assert.Equal("The user was successfully authenticated.", result.Data.Description);
-        Assert.False(string.IsNullOrWhiteSpace(result.Data.Token));
+        Assert.Equal("Token bundle issued successfully.", result.Message);
+        Assert.False(string.IsNullOrWhiteSpace(result.Data.AccessToken));
+        Assert.True(result.Data.AccessTokenExpiresUtc > DateTime.UtcNow);
+        Assert.False(string.IsNullOrWhiteSpace(result.Data.RefreshToken));
+        Assert.True(result.Data.RefreshTokenExpiresUtc > DateTime.UtcNow);
+
     }
 
     [Fact]
@@ -701,29 +710,46 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
     [Fact]
     public async Task Refresh_ValidToken_ReturnsNewAccessToken()
     {
+        // Arrange
         using var scope = Factory.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var refreshService = scope.ServiceProvider.GetRequiredService<IRefreshTokenService>();
 
         var user = await userManager.FindByNameAsync("TestUserNo2FA");
+        Assert.NotNull(user);
+
         var refreshResponse = await refreshService.CreateRefreshTokenAsync(user!);
         Assert.True(refreshResponse.Success);
+
+        var oldRefreshToken = refreshResponse.Data!.Token;
 
         var client = Client;
         var requestBody = new
         {
-            refreshToken = refreshResponse.Data!.Token
+            refreshToken = oldRefreshToken
         };
 
+        // Act
         var response = await client.PostAsJsonAsync("/auth/refresh", requestBody);
-        var content = await response.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        var content = await response.Content.ReadFromJsonAsync<ApiResponse<TokenDto>>();
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(content);
         Assert.True(content!.Success);
         Assert.Equal(OperationStatus.Ok, content.Data!.Status);
         Assert.Equal("Token rotation completed.", content.Message);
-        Assert.False(string.IsNullOrWhiteSpace(content.Data!.Token));
+
+        // New refresh token should be present and different
+        Assert.False(string.IsNullOrWhiteSpace(content.Data.RefreshToken));
+        Assert.NotEqual(oldRefreshToken, content.Data.RefreshToken);
+        Assert.True(content.Data.RefreshTokenExpiresUtc > DateTime.UtcNow);
+
+        // Access token should be present
+        Assert.False(string.IsNullOrWhiteSpace(content.Data.AccessToken));
+        Assert.True(content.Data.AccessTokenExpiresUtc > DateTime.UtcNow);
     }
+
 
     [Fact]
     public async Task Refresh_InvalidToken_ReturnsUnauthorized()
@@ -744,53 +770,71 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
     [Fact]
     public async Task Refresh_RevokedToken_ReturnsUnauthorized()
     {
+        // Arrange
         using var scope = Factory.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var refreshService = scope.ServiceProvider.GetRequiredService<IRefreshTokenService>();
 
         var user = await userManager.FindByNameAsync("TestUserNo2FA");
-        var refreshResponse = await refreshService.CreateRefreshTokenAsync(user!);
+        Assert.NotNull(user);
 
-        // Revoke it
+        var refreshResponse = await refreshService.CreateRefreshTokenAsync(user!);
+        Assert.True(refreshResponse.Success);
+
+        // Revoke the token manually
         var token = await db.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == refreshResponse.Data!.Token);
-        token!.IsRevoked = true;
+        Assert.NotNull(token);
+        token.IsRevoked = true;
         await db.SaveChangesAsync();
 
         var client = Client;
-        var requestBody = new { refreshToken = refreshResponse.Data!.Token };
+        var requestBody = new { refreshToken = refreshResponse.Data.Token };
 
+        // Act
         var response = await client.PostAsJsonAsync("/auth/refresh", requestBody);
-        var content = await response.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        var content = await response.Content.ReadFromJsonAsync<ApiResponse<TokenDto>>();
 
+        // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.False(content!.Success);
+        Assert.NotNull(content);
+        Assert.False(content.Success);
         Assert.Equal("INVALID_REFRESH_TOKEN", content.Error?.Code);
     }
 
     [Fact]
     public async Task Refresh_ReusedToken_ReturnsUnauthorized()
     {
+        // Arrange
         using var scope = Factory.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var refreshService = scope.ServiceProvider.GetRequiredService<IRefreshTokenService>();
 
         var user = await userManager.FindByNameAsync("TestUserNo2FA");
+        Assert.NotNull(user);
+
         var tokenResult = await refreshService.CreateRefreshTokenAsync(user!);
+        Assert.True(tokenResult.Success);
         var refreshToken = tokenResult.Data!.Token;
 
-        // Validate and rotate the token
-        await refreshService.ValidateAndRotateRefreshTokenAsync(refreshToken!);
+        // Rotate the token (making the original invalid)
+        var rotationResult = await refreshService.ValidateAndRotateRefreshTokenAsync(refreshToken);
+        Assert.True(rotationResult.Success);
 
         var client = Client;
         var response = await client.PostAsJsonAsync("/auth/refresh", new { refreshToken });
 
-        var content = await response.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        // Act
+        var content = await response.Content.ReadFromJsonAsync<ApiResponse<TokenDto>>();
+
+        // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.False(content!.Success);
+        Assert.NotNull(content);
+        Assert.False(content.Success);
         Assert.Equal("INVALID_REFRESH_TOKEN", content.Error?.Code);
         Assert.Contains("invalid", content.Error?.Errors?.FirstOrDefault()?.ToLower());
     }
+
 
     [Fact]
     public async Task Refresh_ExpiredToken_ReturnsUnauthorized()
@@ -824,35 +868,41 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
     [Fact]
     public async Task Refresh_TokenRotation_PreventsReuse()
     {
+        // Arrange
         using var scope = Factory.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var refreshService = scope.ServiceProvider.GetRequiredService<IRefreshTokenService>();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var user = await userManager.FindByNameAsync("TestUserNo2FA");
+        Assert.NotNull(user);
 
         // STEP 1: Create refresh token manually
         var refreshTokenResponse = await refreshService.CreateRefreshTokenAsync(user!);
+        Assert.True(refreshTokenResponse.Success);
         var originalToken = refreshTokenResponse.Data!.Token;
 
         // STEP 2: Use it to refresh
         var client = Client;
         var refreshResponse = await client.PostAsJsonAsync("/auth/refresh", new { refreshToken = originalToken });
 
-        var refreshContent = await refreshResponse.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        var refreshContent = await refreshResponse.Content.ReadFromJsonAsync<ApiResponse<TokenDto>>();
         Assert.Equal(HttpStatusCode.OK, refreshResponse.StatusCode);
-        Assert.True(refreshContent!.Success);
-        Assert.False(string.IsNullOrWhiteSpace(refreshContent.Data!.Token));
+        Assert.NotNull(refreshContent);
+        Assert.True(refreshContent.Success);
+        Assert.False(string.IsNullOrWhiteSpace(refreshContent.Data!.RefreshToken));
 
         // STEP 3: Attempt reuse
         var secondUseResponse = await client.PostAsJsonAsync("/auth/refresh", new { refreshToken = originalToken });
-        var secondUseContent = await secondUseResponse.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        var secondUseContent = await secondUseResponse.Content.ReadFromJsonAsync<ApiResponse<TokenDto>>();
 
+        // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, secondUseResponse.StatusCode);
-        Assert.False(secondUseContent!.Success);
+        Assert.NotNull(secondUseContent);
+        Assert.False(secondUseContent.Success);
         Assert.Equal("INVALID_REFRESH_TOKEN", secondUseContent.Error?.Code);
     }
-
+    
     [Fact]
     public async Task Refresh_TokenRotationLog_IsPersisted()
     {
@@ -869,7 +919,7 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         var oldToken = refreshResponse.Data!.Token;
 
         var client = Client;
-        var requestBody = new { refreshToken = oldToken };
+        var requestBody = new { refreshToken = oldToken }; // ✅ Use refreshToken key
 
         // Act
         var response = await client.PostAsJsonAsync("/auth/refresh", requestBody);
@@ -878,18 +928,104 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(result!.Success);
-        Assert.False(string.IsNullOrWhiteSpace(result.Data!.Token));
-        Assert.NotEqual(oldToken, result.Data.Token);
+        Assert.False(string.IsNullOrWhiteSpace(result.Data!.RefreshToken));
+        Assert.NotEqual(oldToken, result.Data.RefreshToken); // Rotation check
 
-        // Verify log was created
+        // Verify the token rotation log is persisted
         var logEntry = await dbContext.TokenRotationLogs
-            .Where(l => l.OldToken == oldToken && l.NewToken == result.Data.Token)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(log => log.OldToken == oldToken && log.NewToken == result.Data.RefreshToken);
 
         Assert.NotNull(logEntry);
         Assert.Equal(user!.Id, logEntry!.UserId);
         Assert.False(string.IsNullOrWhiteSpace(logEntry.IpAddress));
     }
+
+    
+    [Fact]
+    public async Task Refresh_ValidToken_ReturnsNewAccessAndRefreshToken()
+    {
+        // Arrange
+        using var scope = Factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var refreshService = scope.ServiceProvider.GetRequiredService<IRefreshTokenService>();
+
+        var user = await userManager.FindByNameAsync("TestUserNo2FA");
+        Assert.NotNull(user);
+
+        var tokenResponse = await refreshService.CreateRefreshTokenAsync(user!);
+        Assert.True(tokenResponse.Success);
+        var oldRefreshToken = tokenResponse.Data!.RefreshToken;
+
+        var client = Client;
+        var requestBody = new
+        {
+            refreshToken = oldRefreshToken
+        };
+
+        // Act
+        var response = await client.PostAsJsonAsync("/auth/refresh", requestBody);
+        var content = await response.Content.ReadFromJsonAsync<ApiResponse<TokenBundleDto>>();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(content);
+        Assert.True(content.Success);
+        Assert.Equal("Token rotation completed.", content.Message);
+        Assert.Equal(OperationStatus.Ok, content.Data!.Status);
+
+        Assert.False(string.IsNullOrWhiteSpace(content.Data.AccessToken));
+        Assert.False(string.IsNullOrWhiteSpace(content.Data.RefreshToken));
+        Assert.NotEqual(oldRefreshToken, content.Data.RefreshToken);
+
+        Assert.True(content.Data.AccessTokenExpiresUtc > DateTime.UtcNow);
+        Assert.True(content.Data.RefreshTokenExpiresUtc > DateTime.UtcNow);
+
+        // Verify old token cannot be reused
+        var reuseAttempt = await refreshService.ValidateAndRotateRefreshTokenAsync(oldRefreshToken);
+        Assert.False(reuseAttempt.Success);
+        Assert.Equal("INVALID_REFRESH_TOKEN", reuseAttempt.Error!.Code);
+    }
+    
+    [Fact]
+    public async Task Refresh_ValidTokenFromUserWith2FA_ReturnsNewTokenBundle()
+    {
+        // Arrange
+        using var scope = Factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var user = await userManager.FindByNameAsync("LoggedInUser2");
+        Assert.NotNull(user);
+        Assert.True(user.TwoFactorEnabled);
+
+        var oldToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        var expiration = DateTime.UtcNow.AddMinutes(30);
+
+        db.RefreshTokens.Add(new RefreshTokenModel
+        {
+            UserId = user.Id,
+            Token = oldToken,
+            ExpiresUtc = expiration,
+            IsRevoked = false
+        });
+
+        await db.SaveChangesAsync();
+
+        // Act
+        var response = await Client.PostAsJsonAsync("/auth/refresh", new { refreshToken = oldToken });
+        var content = await response.Content.ReadFromJsonAsync<ApiResponse<TokenBundleDto>>();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(content!.Success);
+        Assert.NotNull(content.Data);
+        Assert.Equal(OperationStatus.Ok, content.Data.Status);
+        Assert.False(string.IsNullOrWhiteSpace(content.Data.AccessToken));
+        Assert.False(string.IsNullOrWhiteSpace(content.Data.RefreshToken));
+        Assert.True(content.Data.AccessTokenExpiresUtc > DateTime.UtcNow);
+        Assert.True(content.Data.RefreshTokenExpiresUtc > DateTime.UtcNow);
+    }
+
     
     [Fact]
     public async Task Logout_ValidRequest_ReturnsSuccess()
@@ -962,7 +1098,7 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         // Step 1: Create refresh token
         var user = await userManager.FindByNameAsync("TestUserNo2FA");
         var refreshResult = await refreshService.CreateRefreshTokenAsync(user!);
-        var refreshToken = refreshResult.Data!.Token;
+        var refreshToken = refreshResult.Data!.RefreshToken;
 
         // Step 2: Log the user in
         var client = CreateClientWithCookies(out _);
@@ -978,7 +1114,6 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         Assert.True(loginContent!.Success);
 
         var jwtToken = loginContent.Data!.Token;
-        Output.WriteLine($"Refresh token used: {refreshToken}");
 
         // Step 3: Send logout with refresh token
         var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/auth/logout");

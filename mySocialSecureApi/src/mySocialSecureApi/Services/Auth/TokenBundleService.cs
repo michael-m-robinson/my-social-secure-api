@@ -8,7 +8,7 @@ namespace My_Social_Secure_Api.Services.Auth;
 
 public class TokenBundleService(
     IJwtTokenGenerator jwtTokenGenerator,
-    IRefreshTokenService refreshTokenService)
+    IRefreshTokenService refreshTokenService): ITokenBundleService
 {
     public async Task<ApiResponse<TokenBundleDto>> IssueTokenBundleAsync(ApplicationUser user)
     {
@@ -33,8 +33,8 @@ public class TokenBundleService(
                 Status = OperationStatus.Ok,
                 AccessToken = accessToken,
                 AccessTokenExpiresUtc = utc.Value,
-                RefreshToken = refreshResult.Data!.Token,
-                RefreshTokenExpiresUtc = refreshResult.Data.ExpiresUtc
+                RefreshToken = refreshResult.Data!.Token!,
+                RefreshTokenExpiresUtc = refreshResult.Data.RefreshTokenExpiresUtc
             }
         };
     }

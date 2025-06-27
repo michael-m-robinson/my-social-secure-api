@@ -64,7 +64,7 @@ public class RefreshTokenService : IRefreshTokenService
                 Status = OperationStatus.Ok,
                 Description = "A new refresh token has been generated successfully.",
                 Token = refreshToken.Token,
-                ExpiresUtc = refreshToken.ExpiresUtc
+                RefreshTokenExpiresUtc = refreshToken.ExpiresUtc
             }, "Refresh token created successfully.");
         }
         catch (Exception ex)
@@ -143,9 +143,11 @@ public class RefreshTokenService : IRefreshTokenService
                 Status = OperationStatus.Ok,
                 Description = "Access and refresh token pair issued successfully.",
                 AccessToken = accessToken,
-                Token = newRefreshToken.Token,
-                ExpiresUtc = newRefreshToken.ExpiresUtc
+                AccessTokenExpiresUtc = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessExpireMinutes),
+                RefreshToken = newRefreshToken.Token,
+                RefreshTokenExpiresUtc = newRefreshToken.ExpiresUtc
             }, "Token rotation completed.");
+
         }
         catch (Exception ex)
         {

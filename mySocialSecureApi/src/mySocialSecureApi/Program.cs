@@ -577,6 +577,7 @@ builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IFeedbackService, FeedbackService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<ITokenBundleService, TokenBundleService>();
 builder.Services.AddSingleton<IAlertTrackerService, AlertTrackerService>();
 builder.Services.AddSingleton<IGeoLite2Downloader, GeoLite2Downloader>();
 builder.Services.AddSingleton<IClock, SystemClock>();
