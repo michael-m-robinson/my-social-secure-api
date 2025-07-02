@@ -12,7 +12,7 @@ using My_Social_Secure_Api.Models.Dtos.Common;
 namespace My_Social_Secure_Api.Controllers;
 
 [ApiController]
-[Route("[controller]")]
+[Route("account")]
 [Authorize]
 public class AccountController(IAccountService accountService, IHttpContextAccessor accessor) : ControllerBase
 {
@@ -75,7 +75,7 @@ public class AccountController(IAccountService accountService, IHttpContextAcces
         {
             return HandleException(ex);
         }
-    }
+    } 
 
     [HttpPost("confirm-password-change")]
     [AllowAnonymous]

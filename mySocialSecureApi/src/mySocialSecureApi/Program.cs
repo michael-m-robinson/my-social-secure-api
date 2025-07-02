@@ -87,7 +87,7 @@ builder.Services.AddSwaggerGen(c =>
 
     c.SwaggerDoc("v2", new OpenApiInfo
     {
-        Version = "v1",
+        Version = "v2",
         Title = "Social Secure API",
         Description = "API description"
     });
@@ -172,203 +172,23 @@ builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSet
 // Add rate-limiter
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddPolicy("LoginPolicy", httpContext =>
-    {
-        var tokenParser = httpContext.RequestServices.GetRequiredService<ITokenParserService>();
-        var authHeader = httpContext.Request.Headers.Authorization.ToString();
-        var (userId, _) = tokenParser.ExtractUserInfo(authHeader);
-
-        var id = !string.IsNullOrWhiteSpace(userId) && userId != "anonymous"
-            ? userId
-            : httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown-ip";
-
-        return RateLimitPartition.GetFixedWindowLimiter(id, _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 5,
-            Window = TimeSpan.FromMinutes(10),
-            QueueLimit = 0,
-            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-        });
-    });
-
-    options.AddPolicy("TwoFactorPolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 5,
-                Window = TimeSpan.FromMinutes(5),
-                QueueLimit = 0,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-            }));
-
-    options.AddPolicy("AdminPolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 5,
-                Window = TimeSpan.FromMinutes(10),
-                QueueLimit = 0,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-            }));
-
-    options.AddPolicy("FeedbackSubmissionPolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 5,
-                Window = TimeSpan.FromMinutes(3),
-                QueueLimit = 0,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-            }));
-
-    options.AddPolicy("CalculationPolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 5,
-                Window = TimeSpan.FromHours(15),
-                QueueLimit = 0,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-            }));
-
-    options.AddPolicy("RegistrationPolicy", context =>
-    {
-        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown-ip";
-
-        return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 5,
-            Window = TimeSpan.FromMinutes(10),
-            QueueLimit = 0,
-            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-        });
-    });
-
-    options.AddPolicy("RefreshPolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: s => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 20,
-                Window = TimeSpan.FromMinutes(5),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 5
-            }));
-
-    options.AddPolicy("ConfirmEmailPolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: s => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 10,
-                Window = TimeSpan.FromMinutes(5),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 5
-            }));
-
-    options.AddPolicy("ResendConfirmationPolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: s => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 2,
-                Window = TimeSpan.FromMinutes(10),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 1
-            }));
-
-    options.AddPolicy("LogoutPolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 30,
-                Window = TimeSpan.FromMinutes(5),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 5
-            }));
-
-    options.AddPolicy("RequestPasswordChangePolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 3,
-                Window = TimeSpan.FromMinutes(10),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 1
-            }));
-
-    options.AddPolicy("ConfirmPasswordChangePolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 5,
-                Window = TimeSpan.FromMinutes(5),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 2
-            }));
-
-    options.AddPolicy("RequestEmailChangePolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 2,
-                Window = TimeSpan.FromMinutes(10),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 1
-            }));
-
-    options.AddPolicy("ConfirmEmailChangePolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 5,
-                Window = TimeSpan.FromMinutes(5),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 2
-            }));
-
-    options.AddPolicy("ToggleTwoFactorPolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 5,
-                Window = TimeSpan.FromMinutes(10),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 2
-            }));
-
-    options.AddPolicy("UpdateProfilePolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 10,
-                Window = TimeSpan.FromMinutes(5),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 2
-            }));
-
-    options.AddPolicy("DeleteAccountPolicy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 2, // Only allow 2 delete attempts
-                Window = TimeSpan.FromMinutes(10), // Every 10 minutes
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 1
-            }));
-
+    options.AddPolicy("LoginPolicy", RateLimitingPolicyHelper.FixedPolicy(5, 10));
+    options.AddPolicy("TwoFactorPolicy", RateLimitingPolicyHelper.FixedPolicy(5, 5));
+    options.AddPolicy("AdminPolicy", RateLimitingPolicyHelper.FixedPolicy(5, 10));
+    options.AddPolicy("FeedbackSubmissionPolicy", RateLimitingPolicyHelper.FixedPolicy(5, 3));
+    options.AddPolicy("CalculationPolicy", RateLimitingPolicyHelper.FixedPolicy(5, 60 * 15)); // 15 hours
+    options.AddPolicy("RegistrationPolicy", RateLimitingPolicyHelper.FixedPolicy(5, 10));
+    options.AddPolicy("RefreshPolicy", RateLimitingPolicyHelper.FixedPolicy(20, 5, 5));
+    options.AddPolicy("ConfirmEmailPolicy", RateLimitingPolicyHelper.FixedPolicy(10, 5, 5));
+    options.AddPolicy("ResendConfirmationPolicy", RateLimitingPolicyHelper.FixedPolicy(2, 10, 1));
+    options.AddPolicy("LogoutPolicy", RateLimitingPolicyHelper.FixedPolicy(30, 5, 5));
+    options.AddPolicy("RequestPasswordChangePolicy", RateLimitingPolicyHelper.FixedPolicy(3, 10, 1));
+    options.AddPolicy("ConfirmPasswordChangePolicy", RateLimitingPolicyHelper.FixedPolicy(5, 5, 2));
+    options.AddPolicy("RequestEmailChangePolicy", RateLimitingPolicyHelper.FixedPolicy(2, 10, 1));
+    options.AddPolicy("ConfirmEmailChangePolicy", RateLimitingPolicyHelper.FixedPolicy(5, 5, 2));
+    options.AddPolicy("ToggleTwoFactorPolicy", RateLimitingPolicyHelper.FixedPolicy(5, 10, 2));
+    options.AddPolicy("UpdateProfilePolicy", RateLimitingPolicyHelper.FixedPolicy(10, 5, 2));
+    options.AddPolicy("DeleteAccountPolicy", RateLimitingPolicyHelper.FixedPolicy(2, 10, 1));
 
     options.OnRejected = async (context, token) =>
     {
@@ -388,66 +208,87 @@ builder.Services.AddRateLimiter(options =>
             breachType = "login";
 
         var services = httpContext.RequestServices;
-        var logger = services.GetRequiredService<ILogger<RateLimitingSetup>>();
-        var tokenParser = services.GetRequiredService<ITokenParserService>();
-        var alertTracker = services.GetRequiredService<IAlertTrackerService>();
-        var adminEmailService = services.GetRequiredService<IAdminEmailService>();
-        var responseWriter = services.GetRequiredService<IRateLimitResponseWriter>();
-        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
-        var authHeader = httpContext.Request.Headers.Authorization.ToString();
-        var (userId, _) = tokenParser.ExtractUserInfo(authHeader);
+        var responseWriter = services.GetService<IRateLimitResponseWriter>();
+        ILogger<RateLimitingSetup>? logger = null;
 
-        if (alertTracker.ShouldSend(userId, breachType))
+        try
         {
-            logger.LogWarning("Rate limit rejected request. Path: {Path}, IP: {Ip}, BreachType: {BreachType}",
-                path,
-                httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                breachType);
+            var tokenParser = services.GetRequiredService<ITokenParserService>();
+            var alertTracker = services.GetRequiredService<IAlertTrackerService>();
+            var adminEmailService = services.GetRequiredService<IAdminEmailService>();
+            var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
-            var user = await userManager.FindByIdAsync(userId);
-            if (user == null)
+
+            var authHeader = httpContext.Request.Headers.Authorization.ToString();
+            var (userId, _) = tokenParser.ExtractUserInfo(authHeader);
+
+            if (alertTracker.ShouldSend(userId, breachType))
             {
-                logger.LogWarning("Rate limit triggered by unknown userId: {UserId}", userId);
-                await responseWriter.WriteAsync(httpContext,
-                    "Too many requests detected. Please wait before trying again.", token);
-                return;
+                logger?.LogWarning("Rate limit rejected request. Path: {Path}, IP: {Ip}, BreachType: {BreachType}",
+                    path,
+                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    breachType);
+
+                var user = await userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    logger?.LogWarning("Rate limit triggered by unknown userId: {UserId}", userId);
+                    if (responseWriter != null)
+                        await responseWriter.WriteAsync(httpContext,
+                            "Too many requests detected. Please wait before trying again.", token);
+                    return;
+                }
+
+                var metadata = new SendRateLimitAlertMetaData
+                {
+                    IpAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown",
+                    Endpoint = path
+                };
+
+                var alertSent = await adminEmailService.SendRateLimitAlertAsync(user, metadata);
+                if (!alertSent)
+                    logger?.LogWarning("Failed to send rate limit alert email.");
+
+
+                if (user.UserName == "unknown")
+                {
+                    logger?.LogWarning("Rate limit triggered by unknown userId: {UserId}. Using fallback user.", userId);
+                }
             }
 
-            var metadata = new SendRateLimitAlertMetaData
+            string message;
+            if (is2Fa)
+                message = "Too many verification attempts. For your security, " +
+                          "-please wait a bit before trying again. Need help? We're here!";
+
+            else if (isRegistration)
+                message = "We’ve noticed multiple registration attempts from your device. To protect your account, " +
+                          "please wait a few minutes and try again. If you need help, feel free to contact support.";
+
+            else
+                message =
+                    "We’ve locked login temporarily due to repeated attempts. Please try again soon or reset your " +
+                    "password if needed.";
+
+            if (responseWriter != null) await responseWriter.WriteAsync(httpContext, message, token);
+        }
+        catch (Exception ex)
+        {
+            logger ??= services.GetService<ILogger<RateLimitingSetup>>();
+            logger?.LogError(ex, "Error during rate limit rejection handling.");
+
+            if (responseWriter != null)
             {
-                IpAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown",
-                Endpoint = path
-            };
-
-            var alertSent = await adminEmailService.SendRateLimitAlertAsync(user, metadata);
-            if (!alertSent)
-                logger.LogWarning("Failed to send rate limit alert email.");
-
-
-            if (user.UserName == "unknown")
+                await responseWriter.WriteAsync(httpContext, "Rate limit exceeded. Please try again later.", token);
+            }
+            else
             {
-                logger.LogWarning("Rate limit triggered by unknown userId: {UserId}. Using fallback user.", userId);
+                httpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                await httpContext.Response.WriteAsync("Rate limit exceeded. Please try again later.");
             }
         }
-
-        string message;
-        if (is2Fa)
-            message = "Too many verification attempts. For your security, " +
-                      "-please wait a bit before trying again. Need help? We're here!";
-
-        else if (isRegistration)
-            message = "We’ve noticed multiple registration attempts from your device. To protect your account, " +
-                      "please wait a few minutes and try again. If you need help, feel free to contact support.";
-
-        else
-            message = "We’ve locked login temporarily due to repeated attempts. Please try again soon or reset your " +
-                      "password if needed.";
-
-        await responseWriter.WriteAsync(httpContext, message, token);
     };
-
-
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
@@ -494,13 +335,12 @@ builder.Services.AddAuthentication(options =>
         };
     });
 
-builder.Services.AddAuthorization();
+
 builder.Services.AddHttpContextAccessor();
 
 // Configure cookie settings
 builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorUserIdScheme, options =>
 {
-    options.Cookie.HttpOnly = true;
     options.ExpireTimeSpan = TimeSpan.FromDays(14); // Default expiration time for persistent cookies
     options.SlidingExpiration = true;
     options.LoginPath = "/Auth/Login";

@@ -115,3 +115,5 @@ mySocialSecureApi/src/mySocialSecureApi/App_Data/rootCA.srl
 *.env
 
 mySocialSecureApi.zip
+
+*.zip

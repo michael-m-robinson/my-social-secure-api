@@ -750,7 +750,6 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         Assert.True(content.Data.AccessTokenExpiresUtc > DateTime.UtcNow);
     }
 
-
     [Fact]
     public async Task Refresh_InvalidToken_ReturnsUnauthorized()
     {
@@ -789,7 +788,7 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         await db.SaveChangesAsync();
 
         var client = Client;
-        var requestBody = new { refreshToken = refreshResponse.Data.Token };
+        var requestBody = new { refreshToken = refreshResponse.Data!.Token };
 
         // Act
         var response = await client.PostAsJsonAsync("/auth/refresh", requestBody);
@@ -818,7 +817,7 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         var refreshToken = tokenResult.Data!.Token;
 
         // Rotate the token (making the original invalid)
-        var rotationResult = await refreshService.ValidateAndRotateRefreshTokenAsync(refreshToken);
+        var rotationResult = await refreshService.ValidateAndRotateRefreshTokenAsync(refreshToken!);
         Assert.True(rotationResult.Success);
 
         var client = Client;
@@ -834,7 +833,6 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         Assert.Equal("INVALID_REFRESH_TOKEN", content.Error?.Code);
         Assert.Contains("invalid", content.Error?.Errors?.FirstOrDefault()?.ToLower());
     }
-
 
     [Fact]
     public async Task Refresh_ExpiredToken_ReturnsUnauthorized()
@@ -940,7 +938,6 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         Assert.False(string.IsNullOrWhiteSpace(logEntry.IpAddress));
     }
 
-    
     [Fact]
     public async Task Refresh_ValidToken_ReturnsNewAccessAndRefreshToken()
     {
@@ -959,7 +956,7 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         var client = Client;
         var requestBody = new
         {
-            refreshToken = oldRefreshToken
+            RefreshToken = oldRefreshToken
         };
 
         // Act
@@ -1026,7 +1023,6 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         Assert.True(content.Data.RefreshTokenExpiresUtc > DateTime.UtcNow);
     }
 
-    
     [Fact]
     public async Task Logout_ValidRequest_ReturnsSuccess()
     {
@@ -1109,7 +1105,7 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
             rememberMe = false
         });
 
-        var loginContent = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<OperationDto>>();
+        var loginContent = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<TokenBundleDto>>();
         Assert.NotNull(loginContent);
         Assert.True(loginContent!.Success);
 
@@ -1120,7 +1116,7 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
         logoutRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
         logoutRequest.Content = JsonContent.Create(new
         {
-            UserId = user.Id,
+            UserId = user!.Id,
             Token = refreshToken
         });
 
@@ -1129,12 +1125,12 @@ public class AuthControllerTests(CustomWebApplicationFactory factory, ITestOutpu
 
         // Step 4: Verify that the token was revoked
         var storedToken = await db.RefreshTokens.FirstOrDefaultAsync(t => t.Token == refreshToken);
+        
         // Force refresh from DB to get the latest state
         await db.Entry(storedToken!).ReloadAsync();
         Assert.NotNull(storedToken);
         Assert.True(storedToken!.IsRevoked);
     }
-
 
     private HttpClient CreateClientWithCookies(out CookieContainer cookieContainer)
     {

@@ -78,7 +78,7 @@ public class SmtpClientWrapper : ISmtpClient
     public Task SendMailAsync(MailMessage message)
     {
         // Fallback log without correlation
-        _logger.LogInformation("SendMailAsync called without context. To: {Recipient}", message?.To.FirstOrDefault()?.Address);
+        _logger.LogInformation("SendMailAsync called without context. To: {Recipient}", message.To.FirstOrDefault()?.Address);
 
         try
         {

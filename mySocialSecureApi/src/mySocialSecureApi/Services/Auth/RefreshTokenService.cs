@@ -38,7 +38,7 @@ public class RefreshTokenService : IRefreshTokenService
     private string CorrelationId =>
         _httpContextAccessor?.HttpContext?.Items["X-Correlation-ID"]?.ToString() ?? "none";
 
-    public async Task<ApiResponse<TokenDto>> CreateRefreshTokenAsync(ApplicationUser user)
+    public async Task<ApiResponse<TokenBundleDto>> CreateRefreshTokenAsync(ApplicationUser user)
     {
         try
         {
@@ -59,18 +59,20 @@ public class RefreshTokenService : IRefreshTokenService
 
             _logger.LogInformation("Refresh token created for user ID {UserId}.", user.Id);
 
-            return BuildSuccessResponse(new TokenDto
+            return BuildSuccessResponse(new TokenBundleDto
             {
                 Status = OperationStatus.Ok,
                 Description = "A new refresh token has been generated successfully.",
-                Token = refreshToken.Token,
-                RefreshTokenExpiresUtc = refreshToken.ExpiresUtc
+                RefreshToken = refreshToken.Token,
+                RefreshTokenExpiresUtc = refreshToken.ExpiresUtc,
+                AccessToken = "",
+                AccessTokenExpiresUtc = DateTime.MinValue
             }, "Refresh token created successfully.");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating refresh token. CorrelationId: {CorrelationId}", CorrelationId);
-            return BuildErrorResponse<TokenDto>(
+            return BuildErrorResponse<TokenBundleDto>(
                 "Failed to create refresh token.",
                 "TOKEN_CREATION_FAILED",
                 ErrorCategory.Internal);
@@ -134,7 +136,7 @@ public class RefreshTokenService : IRefreshTokenService
             });
 
             // Generate new access token (JWT)
-            var accessToken = _jwtTokenGenerator.GenerateToken(user);
+            var accessToken = await _jwtTokenGenerator.GenerateToken(user);
 
             await _dbContext.SaveChangesAsync();
 

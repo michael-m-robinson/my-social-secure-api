@@ -1,0 +1,54 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Projects\\my-social-secure-api\\mySocialSecureApi\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{26DFD22C-BB34-489F-95F4-9F7D4774F6DF}|src\\mySocialSecureApi\\Social-Secure-Backend.csproj|c:\\projects\\my-social-secure-api\\mysocialsecureapi\\src\\mysocialsecureapi\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{26DFD22C-BB34-489F-95F4-9F7D4774F6DF}|src\\mySocialSecureApi\\Social-Secure-Backend.csproj|solutionrelative:src\\mysocialsecureapi\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3DCF834E-DF48-42B3-833B-5DA6688261D0}|tests\\Social-Secure-Integration-Tests\\Social-Secure-Integration-Tests.csproj|c:\\projects\\my-social-secure-api\\mysocialsecureapi\\tests\\social-secure-integration-tests\\controllers\\accountcontrollertests.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3DCF834E-DF48-42B3-833B-5DA6688261D0}|tests\\Social-Secure-Integration-Tests\\Social-Secure-Integration-Tests.csproj|solutionrelative:tests\\social-secure-integration-tests\\controllers\\accountcontrollertests.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Projects\\my-social-secure-api\\mySocialSecureApi\\src\\mySocialSecureApi\\Program.cs",
+              "RelativeDocumentMoniker": "src\\mySocialSecureApi\\Program.cs",
+              "ToolTip": "C:\\Projects\\my-social-secure-api\\mySocialSecureApi\\src\\mySocialSecureApi\\Program.cs",
+              "RelativeToolTip": "src\\mySocialSecureApi\\Program.cs",
+              "ViewState": "AgIAANgBAAAAAAAAAAAIwOkBAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-01T19:08:36.998Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "AccountControllerTests.cs",
+              "DocumentMoniker": "C:\\Projects\\my-social-secure-api\\mySocialSecureApi\\tests\\Social-Secure-Integration-Tests\\Controllers\\AccountControllerTests.cs",
+              "RelativeDocumentMoniker": "tests\\Social-Secure-Integration-Tests\\Controllers\\AccountControllerTests.cs",
+              "ToolTip": "C:\\Projects\\my-social-secure-api\\mySocialSecureApi\\tests\\Social-Secure-Integration-Tests\\Controllers\\AccountControllerTests.cs",
+              "RelativeToolTip": "tests\\Social-Secure-Integration-Tests\\Controllers\\AccountControllerTests.cs",
+              "ViewState": "AgIAABAAAAAAAAAAAAAqwEgAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-01T23:41:39.917Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -39,7 +39,7 @@ public class AuthController(
     [EnableRateLimiting("LoginPolicy")]
     [HttpPost("login")]
     [SwaggerOperation(Summary = "Login user", Description = "Logs in a user and returns auth token or initiates 2FA.")]
-    [SwaggerResponse(StatusCodes.Status200OK, "User login result", typeof(ApiResponse<OperationDto>))]
+    [SwaggerResponse(StatusCodes.Status200OK, "User login result", typeof(ApiResponse<TokenBundleDto>))]
     public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
     {
         dto.Host = accessor.HttpContext?.Request.Host ?? default;
@@ -156,7 +156,6 @@ public class AuthController(
             });
         }
     }
-
 
     private IActionResult UnauthorizedError()
     {

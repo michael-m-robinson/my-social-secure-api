@@ -3,6 +3,7 @@ using My_Social_Secure_Api.Interfaces.Services.Auth;
 using My_Social_Secure_Api.Models.Common;
 using My_Social_Secure_Api.Models.Dtos.Auth;
 using My_Social_Secure_Api.Models.Identity;
+using Newtonsoft.Json.Linq;
 
 namespace My_Social_Secure_Api.Services.Auth;
 
@@ -12,10 +13,11 @@ public class TokenBundleService(
 {
     public async Task<ApiResponse<TokenBundleDto>> IssueTokenBundleAsync(ApplicationUser user)
     {
-        var accessToken = jwtTokenGenerator.GenerateToken(user);
+        var accessToken = await jwtTokenGenerator.GenerateToken(user);
 
-        // Handle 'Bearer ' prefix defensively
+        // Handle 'Bearer ' prefix 
         var tokenOnly = accessToken.StartsWith("Bearer ") ? accessToken["Bearer ".Length..] : accessToken;
+
         jwtTokenGenerator.ValidateToken(tokenOnly, out var utc);
 
         var refreshResult = await refreshTokenService.CreateRefreshTokenAsync(user);

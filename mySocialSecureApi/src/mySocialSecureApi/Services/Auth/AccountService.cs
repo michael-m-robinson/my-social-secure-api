@@ -57,7 +57,8 @@ public class AccountService(
                 LastName = user.LastName,
                 Email = user.Email ?? Empty,
                 City = user.City,
-                State = user.State
+                State = user.State,
+                Username = user.UserName ?? "unknown"
             }, "User profile retrieved.");
         }
         catch (Exception ex)
